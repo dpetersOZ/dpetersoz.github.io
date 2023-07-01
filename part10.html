@@ -1,0 +1,794 @@
+<!doctype html> 
+<!doctype html> 
+<html lang="en"> 
+<head> 
+    <meta charset="UTF-8" />
+    <title>The Nano Factory and the Daleks</title>
+    <script src="http://cdn.jsdelivr.net/npm/phaser@3.19.0/dist/phaser.js"></script>
+    <style type="text/css">
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+
+<script type="text/javascript">
+
+class SceneMenu extends Phaser.Scene {
+    constructor ()
+    {
+        super({ key: 'SceneMenu' });
+    }
+
+    preload ()
+    {
+		this.load.image('resMainMenu', 'assets/MenuScreen.png');
+    }
+
+    create ()
+    {
+		this.add.image(400, 300, 'resMainMenu');
+        this.input.manager.enabled = true;
+        this.input.once('pointerdown', function () {
+            this.scene.start('SceneGame');
+        }, this);
+    }
+
+}
+
+var player;
+var stars;
+var bombs;
+var platforms;
+var cursors;
+var score = 0;
+var gameOver = false;
+var playerOnPlatform = false;
+var playerIsCrouching = false;
+var tardisShowing = true;
+var scoreText;
+var nanoSpawnTimer;
+var maxNanosAtOnce = 16;
+var tardis;
+var soundPickup;
+var soundFrogJump
+var soundNanoGone;
+var soundNano;
+var soundRubbish;
+var soundTardisTakeoff;
+var soundTardisLanding;
+var soundExterminate;
+var soundExterminated;
+var soundChuteDrop;
+var soundLaser;
+var TNT1;
+var TNT2;
+var laserCounter = 0;
+var laserYellow;
+var dalekYellow;
+var dalekYellowTween;
+var dalekYellowLaserTween;
+var dalekYellowFacingRight = true;
+var dalekYellowCooldownTimer;
+var dalekYellowCooldownDelay = 5000;
+var laserRed;
+var dalekRed;
+var dalekRedTween;
+var dalekRedLaserTween;
+var dalekRedFacingRight = true;
+var dalekRedCooldownTimer;
+var dalekWhite;
+var dalekWhiteTween;
+var dalekWhiteFacingRight = true;
+
+class SceneGame extends Phaser.Scene {
+    constructor ()
+    {
+        super({ key: 'SceneGame' });
+    }
+
+// ****************************************************************************
+preload ()
+// ****************************************************************************
+{
+    this.load.image('resBackground', 'assets/hexagon-background2.png');
+    this.load.image('ground', 'assets/steel-platform.png');
+    this.load.image('star', 'assets/NanoCache.png');
+    this.load.image('bomb', 'assets/bomb.png');
+	this.load.image('resTardis', 'assets/Tardis.png');
+	this.load.image('resTNTBox', 'assets/TNT Box.png');
+	this.load.image('resTimerBomb', 'assets/TimerBomb.png');
+	this.load.image('resLaser', 'assets/Laser.png');
+    this.load.spritesheet('dude', 'assets/freddo dude2.png', { frameWidth: 32, frameHeight: 48 });
+	this.load.spritesheet('resYellowDalek', 'assets/Yellow Dalek 150x59.png', {frameWidth: 50, frameHeight: 59 });
+	this.load.spritesheet('resRedDalek', 'assets/Red Dalek 150x59.png', {frameWidth: 50, frameHeight: 59 });
+	this.load.spritesheet('resWhiteDalek', 'assets/White Dalek 150x59.png', {frameWidth: 50, frameHeight: 59 });
+	this.load.audio('nanogone', 'assets/Nano Gone.mp3');
+	this.load.audio('resNano', 'assets/nano.mp3');
+	this.load.audio('frog-jump', 'assets/frog-jump.mp3');
+	this.load.audio('resPickup', 'assets/Pickup.mp3');
+	this.load.audio('resRubbish', 'assets/Rubbish.mp3');
+	this.load.audio('resTardisTakeoff', 'assets/TardisTakeoff.mp3');
+	this.load.audio('resTardisLanding', 'assets/TardisLanding.mp3');
+	this.load.audio('resExterminate', 'assets/Exterminate.mp3');
+	this.load.audio('resExterminated', 'assets/AIE.mp3');
+	this.load.audio('resChuteDrop', 'assets/ChuteDrop.mp3');
+	this.load.audio('resSoundLaser', 'assets/lasersound.mp3');
+}
+
+// ****************************************************************************
+create ()
+// ****************************************************************************
+{
+    //  A simple background for our game
+    this.add.image(400, 300, 'resBackground');
+
+    //  The platforms group contains the ground and the 2 ledges we can jump on
+    platforms = this.physics.add.staticGroup();
+
+    //  Here we create the ground.
+    //  Scale it to fit the width of the game (the original sprite is 400x32 in size)
+    //platforms.create(400, 568, 'ground').setScale(2).refreshBody();
+    platforms.create(200, 584, 'ground');
+    platforms.create(600, 584, 'ground');
+
+    //  Now let's create some ledges
+    platforms.create(150, 220, 'ground'); // upper left
+    platforms.create(750, 250, 'ground'); // upper right
+    platforms.create(510, 416, 'ground'); // lower right
+
+    // The player and its settings
+    player = this.physics.add.sprite(80, 545, 'dude');
+
+    //  Player physics properties. Give the little guy a slight bounce.
+    //player.setBounce(0.15);
+    player.setBounce(0.02);
+    player.setCollideWorldBounds(true);
+
+    //  Our player animations, turning, walking left and walking right.
+    this.anims.create({
+        key: 'left',
+        frames: this.anims.generateFrameNumbers('dude', { start: 0, end: 3 }),
+        frameRate: 10,
+        repeat: -1
+    });
+
+    this.anims.create({
+        key: 'turn',
+        frames: [ { key: 'dude', frame: 4 } ],
+        frameRate: 20
+    });
+
+    this.anims.create({
+        key: 'right',
+        frames: this.anims.generateFrameNumbers('dude', { start: 5, end: 8 }),
+        frameRate: 10,
+        repeat: -1
+    });
+
+    this.anims.create({
+        key: 'crouch',
+        frames: [ { key: 'dude', frame: 9 } ],
+        frameRate: 20
+    });
+
+    this.anims.create({
+        key: 'dying',
+        frames: [ {key: 'dude', frame: 4}, {key: 'dude', frame: 10} ],
+        frameRate: 13,
+		repeat: 10
+    });
+
+    //  Input Events
+    cursors = this.input.keyboard.createCursorKeys();
+
+    stars = this.physics.add.group();
+	
+    //  Some stars to collect, 12 in total, evenly spaced 70 pixels apart along the x axis
+    //stars = this.physics.add.group({
+    //    key: 'star',
+    //    repeat: 1
+    //});
+
+    //stars.children.iterate(function (child) {
+
+	//	child.x = Phaser.Math.Between(40, 260);
+	//	child.y = 75;
+        //  Give each star a slightly different bounce
+        //child.setBounceY(Phaser.Math.FloatBetween(0.05, 0.1));
+	//	child.setCollideWorldBounds(true);
+		//child.setBounceX(Phaser.Math.FloatBetween(0.90, 1.1));
+	//	child.setBounceX(1);
+	//	child.setScale(0.5);
+
+		// Comment out for testing
+	//	child.setVelocityX(Phaser.Math.Between(-300, 300));
+	//	child.setVelocityY(Phaser.Math.Between(5,300));
+	//	child.setGravityY(-270);
+	//	child.setBounceY(Phaser.Math.FloatBetween(0.96, 1.04));
+		
+    //});
+
+    TNT1 = this.add.image(60, 541, 'resTNTBox');
+	TNT1.setVisible(false);
+    TNT2 = this.add.image(60, 505, 'resTimerBomb');
+	TNT2.setVisible(false);
+
+	tardis = this.physics.add.sprite(60, 488, 'resTardis').setScale(0.4);
+	// Make its body smaller so we can walk inside the tardis
+	tardis.body.setSize(tardis.frame.width-80,tardis.frame.height,false);
+	
+	//dalekYellow = this.physics.add.sprite(730, 540, 'resYellowDalek').setScale(1.2);
+	dalekYellow = this.physics.add.sprite(730, 540, 'resYellowDalek');
+    dalekYellow.setCollideWorldBounds(true);
+	//dalekYellow.setVelocityX(75);
+
+	dalekRed = this.physics.add.sprite(730, 206, 'resRedDalek');
+    dalekRed.setCollideWorldBounds(true);
+
+	dalekWhite = this.physics.add.sprite(690, 372, 'resWhiteDalek');
+    dalekWhite.setCollideWorldBounds(true);
+	
+	this.anims.create({
+		key: 'yellowDalekRight',
+		frames: [ { key: 'resYellowDalek', frame: 1 }, { key: 'resYellowDalek', frame: 0 } ],
+		frameRate: 5
+	});
+	this.anims.create({
+		key: 'yellowDalekTurn',
+		frames: [ { key: 'resYellowDalek', frame: 1 } ],
+		frameRate: 20
+	});
+	this.anims.create({
+		key: 'yellowDalekLeft',
+		frames: this.anims.generateFrameNumbers('resYellowDalek', { start: 1, end: 2 }),
+		frameRate: 5
+	});
+	
+	this.anims.create({
+		key: 'redDalekRight',
+		frames: [ { key: 'resRedDalek', frame: 1 }, { key: 'resRedDalek', frame: 0 } ],
+		frameRate: 5
+	});
+	this.anims.create({
+		key: 'redDalekTurn',
+		frames: [ { key: 'resRedDalek', frame: 1 } ],
+		frameRate: 20
+	});
+	this.anims.create({
+		key: 'redDalekLeft',
+		frames: this.anims.generateFrameNumbers('resRedDalek', { start: 1, end: 2 }),
+		frameRate: 5
+	});
+	this.anims.create({
+		key: 'whiteDalekRight',
+		frames: [ { key: 'resWhiteDalek', frame: 1 }, { key: 'resWhiteDalek', frame: 0 } ],
+		frameRate: 5
+	});
+	this.anims.create({
+		key: 'whiteDalekTurn',
+		frames: [ { key: 'resWhiteDalek', frame: 1 } ],
+		frameRate: 20
+	});
+	this.anims.create({
+		key: 'whiteDalekLeft',
+		frames: this.anims.generateFrameNumbers('resWhiteDalek', { start: 1, end: 2 }),
+		frameRate: 5
+	});
+	
+	laserYellow = this.physics.add.sprite(-50,530, 'resLaser');
+	laserYellow.body.allowGravity = false;
+	laserYellow.body.setSize(23, 9, true); // ignore glow around laser when colliding
+
+	laserRed = this.physics.add.sprite(-50,196, 'resLaser');
+	laserRed.body.allowGravity = false;
+	laserRed.body.setSize(23, 9, true); // ignore glow around laser when colliding
+	
+    bombs = this.physics.add.group();
+
+	soundPickup = this.sound.add('resPickup');
+	soundFrogJump = this.sound.add('frog-jump');
+	soundNanoGone = this.sound.add('nanogone');
+	soundNano = this.sound.add('resNano');
+	soundRubbish = this.sound.add('resRubbish');
+	soundTardisTakeoff = this.sound.add('resTardisTakeoff');
+	soundTardisLanding = this.sound.add('resTardisLanding');
+	soundExterminate = this.sound.add('resExterminate');
+	soundExterminated = this.sound.add('resExterminated');
+	soundChuteDrop = this.sound.add('resChuteDrop');
+	soundLaser = this.sound.add('resSoundLaser');
+	
+    //  The score
+    scoreText = this.add.text(4, 576, 'No Nanos Taken', { fontFamily: 'Arial Black', fontSize: '16px', fill: '#FFFFFF' });
+	scoreText.setShadow(2,2, '#333333', 2);
+
+    //  Collide the player and the stars with the platforms
+    this.physics.add.collider(player, platforms, playerHitPlatform, null, this);
+    this.physics.add.collider(stars, platforms);
+    this.physics.add.collider(bombs, platforms);
+	this.physics.add.collider(dalekYellow, platforms);
+	this.physics.add.collider(dalekRed, platforms);
+	this.physics.add.collider(dalekWhite, platforms);
+	this.physics.add.collider(tardis, platforms);
+	this.physics.add.collider(stars, stars);
+	this.physics.add.collider(player, dalekYellow, hitBomb, null, this);
+	this.physics.add.collider(player, dalekRed, hitBomb, null, this);
+	this.physics.add.collider(player, dalekWhite, hitBomb, null, this);
+	this.physics.add.overlap(player, laserYellow, hitLaser, null, this);
+	this.physics.add.overlap(player, laserRed, hitLaser, null, this);
+
+    //  Checks to see if the player overlaps with any of the stars, if he does call the collectNano function
+    this.physics.add.overlap(player, stars, collectNano, null, this);
+
+    this.physics.add.collider(player, bombs, hitBomb, null, this);
+	
+	// Timer event to spawn (of statan) the nanos
+	nanoSpawnTimer = this.time.addEvent({ delay: 1000, callback: createAndEjectNano, callbackScope: this, repeat: 0 });
+	
+	// Move daleks
+	dalekYellowCooldownTimer = this.time.addEvent({ delay: dalekYellowCooldownDelay, repeat: -1, loop: true, callback: function () {dalekYellowCooldownTimer.paused = true;dalekYellowCooldownTimer.delay = dalekYellowCooldownDelay;} });
+	dalekYellowTween = this.tweens.add({
+								targets: dalekYellow,
+								props: {
+									x: {
+										from: 775,
+										to: 35,
+										duration: 6500,
+										ease: 'Sine.easeInOut',
+										repeat: -1,
+										yoyo: true,
+									}
+								},
+								onYoyo: function () {dalekYellow.anims.play('yellowDalekRight'); dalekYellowFacingRight = true;dalekYellowCooldownTimer.delay = 500;dalekYellowCooldownTimer.paused = false;},
+								onRepeat: function () {dalekYellow.anims.play('yellowDalekLeft'); dalekYellowFacingRight = false;dalekYellowCooldownTimer.delay = 500;dalekYellowCooldownTimer.paused = false;},
+								onStart: function () {dalekYellow.anims.play('yellowDalekLeft'); dalekYellowFacingRight = false;dalekYellowCooldownTimer.delay = dalekYellowCooldownDelay;dalekYellowCooldownTimer.paused = false;}
+								});
+	dalekRedCooldownTimer = this.time.addEvent({ delay: 3000, repeat: -1, loop: true, callback: function () {dalekRedCooldownTimer.paused = true;dalekRedCooldownTimer.delay = 3000;} });
+	dalekRedTween = this.tweens.add({
+								targets: dalekRed,
+								props: {
+									x: {
+										from: 775,
+										to: 570,
+										duration: 3500,
+										ease: 'Sine.easeInOut',
+										repeat: -1,
+										yoyo: true,
+									}
+								},
+								onYoyo: function () {dalekRed.anims.play('redDalekRight'); dalekRedFacingRight = true;dalekRedCooldownTimer.delay = 1000;dalekRedCooldownTimer.paused = false;},
+								onRepeat: function () {dalekRed.anims.play('redDalekLeft'); dalekRedFacingRight = false;dalekRedCooldownTimer.delay = 1500;dalekRedCooldownTimer.paused = false;},
+								onStart: function () {dalekRed.anims.play('redDalekLeft'); dalekRedFacingRight = false;dalekRedCooldownTimer.delay = 1000;dalekRedCooldownTimer.paused = false;}
+								});
+	dalekWhiteTween = this.tweens.add({
+								targets: dalekWhite,
+								props: {
+									x: {
+										from: 695,
+										to: 320,
+										duration: 6000,
+										ease: 'Sine.easeInOut',
+										repeat: -1,
+										yoyo: true,
+									}
+								},
+								onYoyo: function () {dalekWhite.anims.play('whiteDalekRight'); dalekWhiteFacingRight = true;},
+								onRepeat: function () {dalekWhite.anims.play('whiteDalekLeft'); dalekWhiteFacingRight = false;},
+								onStart: function () {dalekWhite.anims.play('whiteDalekLeft'); dalekWhiteFacingRight = false;}
+								});
+	
+	tardisTakeoff(this);
+}
+
+// ****************************************************************************
+update ()
+// ****************************************************************************
+{
+	if (!game.hasFocus)
+	{
+//		game.pause();
+	}
+	
+    if (gameOver)
+    {
+        return;
+    }
+
+	playerIsCrouching = false;
+	
+	// Crouching
+    if (cursors.down.isDown)
+    {
+        player.setVelocityX(0);
+        player.anims.play('crouch');
+		playerIsCrouching = true;
+    }
+    else if (cursors.left.isDown)
+    {
+        player.setVelocityX(-160);
+
+        player.anims.play('left', true);
+    }
+    else if (cursors.right.isDown)
+    {
+        player.setVelocityX(160);
+
+        player.anims.play('right', true);
+    }
+    else
+    {
+        player.setVelocityX(0);
+
+        player.anims.play('turn');
+    }
+
+    if (cursors.up.isDown && player.body.touching.down && playerOnPlatform)
+    {
+		playerOnPlatform = false;
+		//console.log(this);
+        player.setVelocityY(-330);
+		soundFrogJump.play();
+    }
+
+	if (cursors.space.isDown)
+	{
+		fireLaser(this, dalekRed, dalekRedTween, dalekRedLaserTween, laserRed);
+	}
+
+
+	if (playerOnPlatform && !soundExterminate.isPlaying)
+	{
+		// On platform with yellow Dalek?
+		if ((Math.abs(player.y - dalekYellow.y) < 50) && !dalekYellowTween.paused)
+		{
+			// Have we not fired for a while?
+			if (dalekYellowCooldownTimer.paused)
+			{
+				if ((player.x < dalekYellow.x) && !dalekYellowFacingRight)
+				{
+					fireLaser(this, dalekYellow, dalekYellowTween, dalekYellowLaserTween, laserYellow);
+				}
+				else if ((player.x > dalekYellow.x) && dalekYellowFacingRight)
+				{
+					fireLaser(this, dalekYellow, dalekYellowTween, dalekYellowLaserTween, laserYellow);
+				}
+			}
+		}
+
+		// On platform with red Dalek?
+		if ((Math.abs(player.y - dalekRed.y) < 50) && !dalekRedTween.paused)
+		{
+			// Have we not fired for a while?
+			if (dalekRedCooldownTimer.paused)
+			{
+				if ((player.x < dalekRed.x) && !dalekRedFacingRight)
+				{
+					fireLaser(this, dalekRed, dalekRedTween, dalekRedLaserTween, laserRed);
+				}
+				else if ((player.x > dalekRed.x) && dalekRedFacingRight)
+				{
+					fireLaser(this, dalekRed, dalekRedTween, dalekRedLaserTween, laserRed);
+				}
+			}
+		}
+	}
+	
+	// Has Dalek hit the world X axis beginning/end?
+	//if ((dalekYellow.x + 30 > 800) && (dalekYellow.body.velocity.x > 0))
+	//{
+	//	dalekYellow.anims.play('yellowDalekLeft');
+	//	//console.log('dalekYellow left');
+	//	dalekYellow.setVelocityX(dalekYellow.body.velocity.x * -1);
+	//}
+	//else if ((dalekYellow.x <= 32) && (dalekYellow.body.velocity.x < 1))
+	//{
+	//	dalekYellow.anims.play('yellowDalekRight');
+	//	//console.log('dalekYellow right');
+	//	dalekYellow.setVelocityX(dalekYellow.body.velocity.x * -1);
+	//}
+}
+}
+
+// ****************************************************************************
+function fireLaser (theGame, DalekSprite, DalekTween, LaserTween, LaserSprite)
+// ****************************************************************************
+{
+	var DalekFacingRight = false;
+	
+	DalekTween.pause();
+	if (laserCounter === 0)
+	{
+		soundExterminate.play({volume: 0.3});
+	}
+	else
+	{
+		soundLaser.play({volume: 1});
+	}
+	laserCounter++;
+	if (laserCounter > 4)
+	{
+		laserCounter = 0;
+	}
+	
+	if (DalekSprite === dalekYellow)
+	{
+		DalekFacingRight = dalekYellowFacingRight;
+	}
+	else if (DalekSprite === dalekRed)
+	{
+		DalekFacingRight = dalekRedFacingRight;
+	}
+
+	// Firing from left to right
+	if (DalekFacingRight)
+	{
+		var laserStart = DalekSprite.x + (DalekSprite.width / 2);
+		var laserFinish = 830;
+		// Speed: 2000 ms to travel 800 pixels
+		var speedMSec = Math.floor(((laserFinish - laserStart) / 800) * 2000);
+	}
+	// If firing from right to left
+	else 
+	{
+		var laserStart = DalekSprite.x - (DalekSprite.width / 2);
+		var laserFinish = -30;
+		// Speed: 2000 ms to travel 800 pixels
+		var speedMSec = Math.floor(((laserStart - laserFinish) / 800) * 2000);
+	}
+
+	//console.log('Dalek laser: ' + laserStart + ' to ' + laserFinish + ' speed ' + speedMSec);
+	
+	LaserTween = theGame.tweens.add({
+								targets: LaserSprite,
+								props: {
+									x: {
+										from: laserStart,
+										to: laserFinish,
+										duration: speedMSec
+									}
+								},
+								onComplete: laserFinished,
+								});
+}
+
+// ****************************************************************************
+function laserFinished (LaserTween, TheTargets)
+// ****************************************************************************
+{
+	LaserTween.remove();
+	if (!gameOver)
+	{
+		if (TheTargets[0] === laserYellow)
+		{
+			dalekYellowTween.resume();
+			dalekYellowCooldownTimer.paused = false; // cooldown before firing again
+		}
+		else if (TheTargets[0] === laserRed)
+		{
+			dalekRedTween.resume();
+			dalekRedCooldownTimer.paused = false; // cooldown before firing again
+		}
+	}
+}
+
+// ****************************************************************************
+function createAndEjectNano ()
+// ****************************************************************************
+{
+	//console.log('createAndEjectNano ' + stars.countActive(true));
+	// if number of nanos < maxNanosAtOnce then create another nano
+	if (stars.countActive(true) < maxNanosAtOnce)
+	{
+        var nano = stars.create(Phaser.Math.Between(50, 155), 75, 'star');
+
+		nano.x = Phaser.Math.Between(50, 155);
+		nano.y = 75;
+	
+		// Don't allow nano outside of world
+		nano.setCollideWorldBounds(true);
+	
+		//  Give each nano a slightly different bounce
+		//nano.setBounceY(Phaser.Math.FloatBetween(0.05, 0.1));
+		nano.setBounceX(Phaser.Math.FloatBetween(0.75, 1));
+		//nano.setBounceX(1);
+
+		nano.setScale(0.5);
+
+		// Comment out for testing
+		nano.setVelocity(Phaser.Math.Between(-500, 500), Phaser.Math.Between(5,100));
+		//nano.setGravityY(-270);
+		//nano.setBounceY(Phaser.Math.FloatBetween(0.96, 1.04));
+		nano.setBounceY(Phaser.Math.FloatBetween(0.71, 0.90));
+		//nano.allowGravity = false;
+		soundChuteDrop.play({volume: 0.5});
+	}
+	nanoSpawnTimer.reset( {delay: Phaser.Math.Between(250, 2000), callback: createAndEjectNano, callbackScope: this, repeat: 1} );
+}
+
+// ****************************************************************************
+function collectNano (player, star)
+// ****************************************************************************
+{
+	if (!gameOver)
+	{
+		//star.disableBody(true, true);
+		star.destroy();
+		
+		//  Add and update the score
+		score += 1;
+		scoreText.setText(score + ' Nanos Taken');
+		if (score === 15)
+		{
+			soundRubbish.play();
+		}
+		else
+		if (score === 200)
+		{
+			soundNanoGone.play();
+			// Materialise TARDIS
+			this.tweens.add({ targets: tardis, ease: 'bounce.InOut', duration: 5000, alpha: 1 });
+			soundTardisLanding.play({volume: 0.5});
+			
+			// need to create collider for player vs tardis
+			this.physics.add.overlap(player, tardis, enteredTardis, null, this);
+		}
+		else
+		{
+			if ((score % 10) === 0)
+			{
+				soundNano.play();
+			}
+			else
+			{
+				soundPickup.play({ volume: 0.4 });
+			}
+		}
+
+		if ((score % 1000) === 0)
+		{
+			// Dispatch bomb
+			var x = (player.x < 400) ? Phaser.Math.Between(400, 800) : Phaser.Math.Between(0, 400);
+			var bomb = bombs.create(x, 16, 'bomb');
+			bomb.setBounce(1);
+			bomb.setCollideWorldBounds(true);
+			bomb.setVelocity(Phaser.Math.Between(-200, 200), 10);
+			bomb.allowGravity = false;
+		}
+	}
+}
+
+// ****************************************************************************
+function hitLaser (Player, Laser)
+// ****************************************************************************
+{
+	let {overlapX, overlapY} = getOverlap(Player, Laser);
+	
+	console.log('OverlapX:' + overlapX);
+	console.log('OverlapY:' + overlapY);
+	if (overlapX > 20)
+	{
+		// Are we crouching and laser is going over head?
+		if (playerIsCrouching && (overlapY < 4) && (Laser.y < Player.y))
+		{
+			return
+		}
+		else {
+			hitBomb(Player, Laser);
+		}
+	}
+}
+
+// ****************************************************************************
+function getOverlap(Object1, Object2)
+// ****************************************************************************
+{
+	var overlapX, overlapY = 0; //return values
+	var obj1R = Object1.x + Object1.width, obj2R = Object2.x + Object2.width,
+		obj1B = Object1.y + Object1.height, obj2B = Object2.y + Object2.height;
+	if (obj1R > Object2.x && Object1.x < obj2R &&
+		obj1B > Object2.y && Object1.y < obj2B)
+	{
+		//find biggest x & smallest r
+		var biggestX = Math.max(Object1.x, Object2.x);
+		var smallestR = Math.min(obj1R, obj2R);
+		overlapX = smallestR - biggestX;
+		//now do the y
+		var biggestY = Math.max(Object1.y, Object2.y);
+		var smallestB = Math.min(obj1B, obj2B);
+		overlapY = smallestB - biggestY;
+	}
+	return {overlapX, overlapY};
+}
+
+// ****************************************************************************
+function hitBomb (player, bomb)
+// ****************************************************************************
+{
+	if (!gameOver)
+	{
+		soundExterminated.play({volume: 0.33});
+		//this.physics.pause();
+		//player.setTint(0xff0000);
+		
+		player.anims.play('dying');
+		player.setVelocityX(0);
+		gameOver = true;
+		nanoSpawnTimer.paused = true;
+		dalekYellowTween.pause();
+		dalekRedTween.pause();
+		dalekWhiteTween.pause();
+		//game.scene.getScene('SceneGame').physics.pause();
+	}
+}
+
+// ****************************************************************************
+function tardisTakeoff (game)
+// ****************************************************************************
+{
+	tardisShowing = false;
+	soundTardisTakeoff.play({volume: 0.33});
+	game.tweens.add({ targets: tardis, ease: 'bounce.InOut', duration: 8000, alpha: 0 });
+}
+
+// ****************************************************************************
+function enteredTardis (player)
+// ****************************************************************************
+{
+	this.physics.pause();
+	dalekYellowTween.pause();
+	gameOver = true;
+	nanoSpawnTimer.paused = true;
+	player.visible = false;
+	tardisTakeoff(this);
+	TNT1.setVisible(true);
+	TNT2.setVisible(true);
+	this.time.delayedCall(3000, blowupNanoFactory, [], this);
+}
+
+// ****************************************************************************
+function blowupNanoFactory ()
+// ****************************************************************************
+{
+	this.cameras.main.shake(3000);
+	this.time.delayedCall(2000, function () {this.cameras.main.fade(1000);}, [], this);
+	//this.time.delayedCall(3000, function () {this.scene.restart();}, [], this);
+}
+
+// ****************************************************************************
+function playerHitPlatform (player, platform)
+// ****************************************************************************
+{
+	if (!playerOnPlatform && player.body.touching.down)
+	{
+		playerOnPlatform = true;
+		//console.log('Player hit platform');
+	}
+}
+
+var config = {
+    type: Phaser.AUTO,
+    width: 800,
+    height: 600,
+	backgroundColor: '#000000',
+    physics: {
+        default: 'arcade',
+        arcade: {
+            gravity: { y: 300 },
+            debug: false
+        }
+    },
+	scale: {
+		mode: Phaser.Scale.FIT,
+		width: 800,
+		height: 600
+	},
+    scene: [ SceneMenu, SceneGame ]
+};
+
+var game = new Phaser.Game(config);
+
+</script>
+
+</body>
+</html>
