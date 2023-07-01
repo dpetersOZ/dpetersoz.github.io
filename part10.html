@@ -300,7 +300,7 @@ create ()
 	soundLaser = this.sound.add('resSoundLaser');
 	
     //  The score
-    scoreText = this.add.text(4, 576, 'No Nanos Taken', { fontFamily: 'Arial Black', fontSize: '16px', fill: '#FFFFFF' });
+    scoreText = this.add.text(4, 576, 'No Nanos Taken', { fontFamily: 'Arial', fontSize: '16px', fill: '#FFFFFF' });
 	scoreText.setShadow(2,2, '#333333', 2);
 
     //  Collide the player and the stars with the platforms
@@ -400,9 +400,12 @@ update ()
 	// Crouching
     if (cursors.down.isDown)
     {
-        player.setVelocityX(0);
-        player.anims.play('crouch');
-		playerIsCrouching = true;
+        if (playerOnPlatform)
+		{
+			player.setVelocityX(0);
+			player.anims.play('crouch');
+			playerIsCrouching = true;
+		}
     }
     else if (cursors.left.isDown)
     {
