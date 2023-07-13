@@ -42,6 +42,7 @@ var stars;
 var bombs;
 var platforms;
 var cursors;
+var keys;
 var score = 0;
 var gameOver = false;
 var playerOnPlatform = false;
@@ -182,6 +183,7 @@ create ()
 
     //  Input Events
     cursors = this.input.keyboard.createCursorKeys();
+	keys = this.input.keyboard.addKeys({ up: 'W', left: 'A', down: 'S', right: 'D' });
 
     stars = this.physics.add.group();
 	
@@ -398,7 +400,7 @@ update ()
 	playerIsCrouching = false;
 	
 	// Crouching
-    if (cursors.down.isDown)
+    if (cursors.down.isDown || keys.down.isDown)
     {
         if (playerOnPlatform)
 		{
@@ -407,13 +409,13 @@ update ()
 			playerIsCrouching = true;
 		}
     }
-    else if (cursors.left.isDown)
+    else if (cursors.left.isDown || keys.left.isDown)
     {
         player.setVelocityX(-160);
 
         player.anims.play('left', true);
     }
-    else if (cursors.right.isDown)
+    else if (cursors.right.isDown || keys.right.isDown)
     {
         player.setVelocityX(160);
 
@@ -426,7 +428,7 @@ update ()
         player.anims.play('turn');
     }
 
-    if (cursors.up.isDown && player.body.touching.down && playerOnPlatform)
+    if ((cursors.up.isDown || keys.up.isDown) && player.body.touching.down && playerOnPlatform)
     {
 		playerOnPlatform = false;
 		//console.log(this);
@@ -434,10 +436,10 @@ update ()
 		soundFrogJump.play();
     }
 
-	if (cursors.space.isDown)
-	{
-		fireLaser(this, dalekRed, dalekRedTween, dalekRedLaserTween, laserRed);
-	}
+	//if (cursors.space.isDown)
+	//{
+	//	fireLaser(this, dalekRed, dalekRedTween, dalekRedLaserTween, laserRed);
+	//}
 
 
 	if (playerOnPlatform && !soundExterminate.isPlaying)
@@ -626,7 +628,7 @@ function collectNano (player, star)
 			soundRubbish.play();
 		}
 		else
-		if (score === 200)
+		if (score === 50)
 		{
 			soundNanoGone.play();
 			// Materialise TARDIS
@@ -710,7 +712,7 @@ function hitBomb (player, bomb)
 {
 	if (!gameOver)
 	{
-		soundExterminated.play({volume: 0.33});
+		soundExterminated.play({volume: 0.1});
 		//this.physics.pause();
 		//player.setTint(0xff0000);
 		
@@ -746,7 +748,7 @@ function enteredTardis (player)
 	tardisTakeoff(this);
 	TNT1.setVisible(true);
 	TNT2.setVisible(true);
-	this.time.delayedCall(3000, blowupNanoFactory, [], this);
+	this.time.delayedCall(7000, blowupNanoFactory, [], this);
 }
 
 // ****************************************************************************
